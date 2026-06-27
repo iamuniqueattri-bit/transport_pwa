@@ -1,0 +1,177 @@
+import { supabase } from "@/lib/supabase"
+
+export type Driver = {
+  id: string
+  name: string
+  mobile: string
+  licenseNumber: string
+  licenseExpiry?: string | null
+  address?: string | null
+  emergencyContact?: string | null
+  remarks?: string | null
+  createdAt: string
+}
+
+type DriverRow = {
+  id: string
+  name: string
+  mobile: string
+  license_number: string
+  license_expiry?: string | null
+  address?: string | null
+  emergency_contact?: string | null
+  remarks?: string | null
+  created_at: string
+  user_id?: string | null
+}
+
+type DriverInput = Omit<Driver, "id" | "createdAt"> & {
+  licenseExpiry?: string | null
+  address?: string | null
+  emergencyContact?: string | null
+  remarks?: string | null
+}
+
+function mapDriverRow(row: DriverRow): Driver {
+  return {
+    id: row.id,
+    name: row.name,
+    mobile: row.mobile,
+    licenseNumber: row.license_number,
+    licenseExpiry: row.license_expiry ?? null,
+    address: row.address ?? null,
+    emergencyContact: row.emergency_contact ?? null,
+    remarks: row.remarks ?? null,
+    createdAt: row.created_at,
+  }
+}
+
+function mapDriverInput(driver: DriverInput) {
+  return {
+    name: driver.name,
+    mobile: driver.mobile,
+    license_number: driver.licenseNumber,
+    license_expiry: driver.licenseExpiry || null,
+    address: driver.address || null,
+    emergency_contact: driver.emergencyContact || null,
+    remarks: driver.remarks || null,
+  }
+}
+
+async function getCurrentUserId(): Promise<string | null> {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+
+  if (error) {
+    console.error("[SupabaseDrivers] getUser error:", error)
+    return null
+  }
+
+  return user?.id ?? null
+}
+
+function dispatchDriversUpdated() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("driversUpdated"))
+  }
+}
+
+export async function getDrivers(): Promise<Driver[]> {
+  const userId = await getCurrentUserId()
+  if (!userId) return []
+
+  const { data, error } = await supabase
+    .from("drivers")
+    .select("*")
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    console.error("Query error:", error)
+    return []
+  }
+
+  return (data || []).map(mapDriverRow)
+}
+
+export async function getDriverById(id: string): Promise<Driver | null> {
+  const userId = await getCurrentUserId()
+  if (!userId) return null
+
+  const { data, error } = await supabase
+    .from("drivers")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (error) {
+    console.error("Query error:", error)
+    return null
+  }
+
+  return data ? mapDriverRow(data) : null
+}
+
+export async function createDriver(driver: DriverInput): Promise<Driver | null> {
+  const userId = await getCurrentUserId()
+  if (!userId) return null
+
+  const payload = mapDriverInput(driver)
+
+  const { data, error } = await supabase
+    .from("drivers")
+    .insert([payload])
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Query error:", error)
+    return null
+  }
+
+  const result = data ? mapDriverRow(data) : null
+  if (result) dispatchDriversUpdated()
+  return result
+}
+
+export async function updateDriver(driver: Driver): Promise<Driver | null> {
+  const userId = await getCurrentUserId()
+  if (!userId) return null
+
+  const payload = mapDriverInput(driver)
+
+  const { data, error } = await supabase
+    .from("drivers")
+    .update(payload)
+    .eq("id", driver.id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Query error:", error)
+    return null
+  }
+
+  const result = data ? mapDriverRow(data) : null
+  if (result) dispatchDriversUpdated()
+  return result
+}
+
+export async function deleteDriver(id: string): Promise<boolean> {
+  const userId = await getCurrentUserId()
+  if (!userId) return false
+
+  const { error } = await supabase
+    .from("drivers")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    console.error("Query error:", error)
+    return false
+  }
+
+  dispatchDriversUpdated()
+  return true
+}
