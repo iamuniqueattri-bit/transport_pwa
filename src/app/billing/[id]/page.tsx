@@ -20,7 +20,15 @@ type GR = {
 export default function InvoiceDetailsPage() {
   const params = useParams()
   const router = useRouter()
-  const invoiceId = params.id as string
+
+  if (!params?.id) {
+    return <div>Loading...</div>
+  }
+
+  const invoiceId =
+    typeof params.id === 'string'
+      ? params.id
+      : params.id[0]
 
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [customerName, setCustomerName] = useState<string | undefined>()
