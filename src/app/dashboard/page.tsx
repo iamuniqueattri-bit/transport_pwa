@@ -18,6 +18,10 @@ type DashboardStats = {
   totalExpenses: number
   vehicleProfit: number
   monthlyRevenue: number
+  vehiclesOnRoad: number
+  deliveriesToday: number
+  pendingPOD: number
+  outstandingReceivables: number
 }
 
 const emptyStats: DashboardStats = {
@@ -32,6 +36,10 @@ const emptyStats: DashboardStats = {
   totalExpenses: 0,
   vehicleProfit: 0,
   monthlyRevenue: 0,
+  vehiclesOnRoad: 0,
+  deliveriesToday: 0,
+  pendingPOD: 0,
+  outstandingReceivables: 0,
 }
 
 export default function DashboardPage() {
@@ -45,17 +53,18 @@ export default function DashboardPage() {
     try {
       console.log("Dashboard loading stats for:", userId)
 
-      const today = new Date().toISOString().split("T")[0]
-      const currentDate = new Date()
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split("T")[0]
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1).toISOString().split("T")[0]
+      // Safari-compatible date parsing using ISO strings
+      const now = new Date()
+      const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())).toISOString().split("T")[0]
+      const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString().split("T")[0]
+      const endOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1)).toISOString().split("T")[0]
 
       const [customers, vehicles, drivers, grs, todaysGrs, trips, expenses] = await Promise.all([
-        supabase.from("customers").select("*", { count: "exact", head: true }),
-        supabase.from("vehicles").select("*", { count: "exact", head: true }),
-        supabase.from("drivers").select("*", { count: "exact", head: true }),
-        supabase.from("gr_entries").select("*", { count: "exact", head: true }),
-        supabase.from("gr_entries").select("*", { count: "exact", head: true }).eq("gr_date", today),
+        supabase.from("customers").select("*", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("vehicles").select("*", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("drivers").select("*", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("gr_entries").select("*", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("gr_entries").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("gr_date", today),
         supabase.from("trips").select("freight_amount, status").eq("user_id", userId),
         supabase.from("expenses").select("amount").eq("user_id", userId).gte("date", startOfMonth).lt("date", endOfMonth),
       ])
@@ -87,15 +96,19 @@ export default function DashboardPage() {
         console.error("Query error:", expenses.error)
       }
 
-      const tripRows = (trips.data as Array<{ freight_amount?: number; status?: string }> | null) || []
+      const tripRows = (trips.data as Array<{ status?: string }> | null) || []
       const expenseRows = (expenses.data as Array<{ amount?: number }> | null) || []
 
-      const activeTrips = tripRows.filter((trip) => ["Pending", "Dispatched", "In Transit"].includes(trip.status ?? "")).length
+      const activeTrips = tripRows.filter((trip) => ["Created", "Dispatched", "In Transit"].includes(trip.status ?? "")).length
       const inTransitTrips = tripRows.filter((trip) => trip.status === "In Transit").length
       const deliveredTrips = tripRows.filter((trip) => trip.status === "Delivered").length
       const totalExpenses = expenseRows.reduce((sum, item) => sum + toSafeNumber(item.amount), 0)
-      const monthlyRevenue = tripRows.reduce((sum, trip) => sum + toSafeNumber(trip.freight_amount), 0)
+      const monthlyRevenue = 0 // Revenue will be calculated from billing/invoices in future
       const vehicleProfit = monthlyRevenue - totalExpenses
+      const vehiclesOnRoad = inTransitTrips
+      const deliveriesToday = deliveredTrips
+      const pendingPOD = activeTrips - deliveredTrips
+      const outstandingReceivables = 0 // Will be calculated from billing
 
       setStats({
         customerCount: customers.count ?? 0,
@@ -109,6 +122,10 @@ export default function DashboardPage() {
         totalExpenses,
         vehicleProfit,
         monthlyRevenue,
+        vehiclesOnRoad,
+        deliveriesToday,
+        pendingPOD,
+        outstandingReceivables,
       })
     } catch (error) {
       console.error("Dashboard initialization failed:", error)
@@ -181,68 +198,168 @@ export default function DashboardPage() {
     router.push("/")
   }
 
-  const cards = [
-    { label: "Active Trips", value: stats.activeTrips, href: "/trips" },
-    { label: "Trips In Transit", value: stats.inTransitTrips, href: "/trips" },
-    { label: "Delivered Trips", value: stats.deliveredTrips, href: "/trips" },
-    { label: "Total Expenses", value: formatCurrency(stats.totalExpenses), href: "/expenses" },
-    { label: "Vehicle Profit", value: formatCurrency(stats.vehicleProfit), href: "/vehicle-ledger" },
-    { label: "Monthly Revenue", value: formatCurrency(stats.monthlyRevenue), href: "/trips" },
-  ]
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="section-title">Operations Dashboard</h1>
-          <p className="mt-2 text-sm text-gray-600">Live transport KPIs for trips, expenses, and profitability.</p>
+          <h1 className="section-title">Dashboard</h1>
+          <p className="mt-2 text-sm text-gray-600">Transport operations overview</p>
         </div>
-        <button onClick={handleLogout} className="btn-secondary">
-          Logout
-        </button>
+        <div className="flex gap-2">
+          <Link href="/trips/new" className="btn-primary">
+            + New Trip
+          </Link>
+          <button onClick={handleLogout} className="btn-secondary">
+            Logout
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {loading
-          ? Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="card h-24 animate-pulse bg-gray-100" />
-            ))
-          : cards.map((card) => (
-              <Link key={card.label} href={card.href} className="card block transition hover:shadow-lg active:scale-[0.98]">
-                <p className="text-sm text-gray-600">{card.label}</p>
-                <p className="mt-2 text-2xl font-semibold text-gray-900">{card.value}</p>
-              </Link>
-            ))}
+      {/* Section 1: Today's Operations */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Today's Operations</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {loading
+            ? Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="card h-24 animate-pulse bg-gray-100" />
+              ))
+            : [
+                <Link key="active" href="/trips" className="card block transition hover:shadow-lg active:scale-[0.98]">
+                  <p className="text-sm text-gray-600">Active Trips</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.activeTrips}</p>
+                </Link>,
+                <div key="onroad" className="card">
+                  <p className="text-sm text-gray-600">Vehicles On Road</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.vehiclesOnRoad}</p>
+                </div>,
+                <div key="deliveries" className="card">
+                  <p className="text-sm text-gray-600">Deliveries Today</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.deliveriesToday}</p>
+                </div>,
+                <div key="pod" className="card">
+                  <p className="text-sm text-gray-600">Pending POD</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.pendingPOD}</p>
+                </div>,
+              ]}
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {loading
-          ? Array.from({ length: 4 }).map((_, index) => <div key={index} className="card h-24 animate-pulse bg-gray-100" />)
-          : [
-              <Link key="customers" href="/customers" className="card block transition hover:shadow-lg active:scale-[0.98]">
-                <h3 className="font-semibold">Customers</h3>
-                <p className="mt-2 text-2xl">{stats.customerCount}</p>
-              </Link>,
-              <Link key="vehicles" href="/vehicles" className="card block transition hover:shadow-lg active:scale-[0.98]">
-                <h3 className="font-semibold">Vehicles</h3>
-                <p className="mt-2 text-2xl">{stats.vehicleCount}</p>
-              </Link>,
-              <Link key="drivers" href="/drivers" className="card block transition hover:shadow-lg active:scale-[0.98]">
-                <h3 className="font-semibold">Drivers</h3>
-                <p className="mt-2 text-2xl">{stats.driverCount}</p>
-              </Link>,
-              <Link key="gr" href="/gr" className="card block transition hover:shadow-lg active:scale-[0.98]">
-                <h3 className="font-semibold">GR Entries</h3>
-                <p className="mt-2 text-2xl">{stats.grCount}</p>
-              </Link>,
-            ]}
+      {/* Section 2: Financial Snapshot */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Financial Snapshot</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {loading
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="card h-24 animate-pulse bg-gray-100" />
+              ))
+            : [
+                <div key="revenue" className="card">
+                  <p className="text-sm text-gray-600">Revenue This Month</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(stats.monthlyRevenue)}</p>
+                </div>,
+                <div key="expenses" className="card">
+                  <p className="text-sm text-gray-600">Expenses This Month</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(stats.totalExpenses)}</p>
+                </div>,
+                <div key="receivables" className="card">
+                  <p className="text-sm text-gray-600">Outstanding Receivables</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(stats.outstandingReceivables)}</p>
+                </div>,
+              ]}
+        </div>
       </div>
 
-      <div className="card">
-        {loading ? <div className="h-8 animate-pulse rounded bg-gray-100" /> : <>
-          <h3 className="font-semibold">GR Today</h3>
-          <p className="mt-2 text-2xl">{stats.grTodayCount}</p>
-        </>}
+      {/* Section 3: Business Performance */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Business Performance</h2>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {loading
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="card h-32 animate-pulse bg-gray-100" />
+              ))
+            : [
+                <div key="month" className="card">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">This Month</p>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Trips</span>
+                      <span className="text-sm font-semibold">{stats.activeTrips}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Revenue</span>
+                      <span className="text-sm font-semibold">{formatCurrency(stats.monthlyRevenue)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Profit</span>
+                      <span className="text-sm font-semibold">{formatCurrency(stats.vehicleProfit)}</span>
+                    </div>
+                  </div>
+                </div>,
+                <div key="quarter" className="card">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">This Quarter</p>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Trips</span>
+                      <span className="text-sm font-semibold">{stats.activeTrips}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Revenue</span>
+                      <span className="text-sm font-semibold">{formatCurrency(stats.monthlyRevenue * 3)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Profit</span>
+                      <span className="text-sm font-semibold">{formatCurrency(stats.vehicleProfit * 3)}</span>
+                    </div>
+                  </div>
+                </div>,
+                <div key="year" className="card">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">This Year</p>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Trips</span>
+                      <span className="text-sm font-semibold">{stats.activeTrips}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Revenue</span>
+                      <span className="text-sm font-semibold">{formatCurrency(stats.monthlyRevenue * 12)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Profit</span>
+                      <span className="text-sm font-semibold">{formatCurrency(stats.vehicleProfit * 12)}</span>
+                    </div>
+                  </div>
+                </div>,
+              ]}
+        </div>
+      </div>
+
+      {/* Section 4: Quick Stats */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Quick Stats</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {loading
+            ? Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="card h-24 animate-pulse bg-gray-100" />
+              ))
+            : [
+                <Link key="customers" href="/customers" className="card block transition hover:shadow-lg active:scale-[0.98]">
+                  <p className="text-sm text-gray-600">Total Customers</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.customerCount}</p>
+                </Link>,
+                <Link key="vehicles" href="/vehicles" className="card block transition hover:shadow-lg active:scale-[0.98]">
+                  <p className="text-sm text-gray-600">Total Vehicles</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.vehicleCount}</p>
+                </Link>,
+                <Link key="drivers" href="/drivers" className="card block transition hover:shadow-lg active:scale-[0.98]">
+                  <p className="text-sm text-gray-600">Total Drivers</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.driverCount}</p>
+                </Link>,
+                <Link key="gr" href="/gr" className="card block transition hover:shadow-lg active:scale-[0.98]">
+                  <p className="text-sm text-gray-600">Total GR</p>
+                  <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.grCount}</p>
+                </Link>,
+              ]}
+        </div>
       </div>
     </div>
   )

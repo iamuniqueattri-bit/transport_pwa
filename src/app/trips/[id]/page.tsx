@@ -37,21 +37,17 @@ export default function TripDetailPage() {
       <div className="page-container space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="section-title">{trip.gr_number}</h1>
-            <p className="mt-2 text-sm text-gray-600">{trip.customer_name} • {trip.vehicle_number}</p>
+            <h1 className="section-title">{trip.trip_number}</h1>
+            <p className="mt-2 text-sm text-gray-600">{trip.vehicle_number} • {trip.driver_name}</p>
           </div>
           <TripStatusBadge status={trip.status} />
         </div>
 
         <div className="card space-y-3">
           <div className="grid gap-2 text-sm text-gray-700 sm:grid-cols-2">
-            <p><span className="font-semibold">Origin:</span> {trip.origin}</p>
-            <p><span className="font-semibold">Destination:</span> {trip.destination}</p>
-            <p><span className="font-semibold">Start Date:</span> {trip.start_date}</p>
-            <p><span className="font-semibold">Expected Delivery:</span> {trip.expected_delivery_date}</p>
-            <p><span className="font-semibold">Actual Delivery:</span> {trip.actual_delivery_date ?? '—'}</p>
-            <p><span className="font-semibold">Freight:</span> ₹{trip.freight_amount}</p>
-            <p><span className="font-semibold">Advance:</span> ₹{trip.advance_paid}</p>
+            <p><span className="font-semibold">From:</span> {trip.from_location}</p>
+            <p><span className="font-semibold">To:</span> {trip.to_location}</p>
+            <p><span className="font-semibold">Date:</span> {trip.trip_date}</p>
             <p><span className="font-semibold">Driver:</span> {trip.driver_name}</p>
           </div>
           {trip.remarks ? <p className="text-sm text-gray-600">{trip.remarks}</p> : null}

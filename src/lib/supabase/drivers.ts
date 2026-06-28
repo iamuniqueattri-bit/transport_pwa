@@ -115,7 +115,12 @@ export async function getDriverById(id: string): Promise<Driver | null> {
 
 export async function createDriver(driver: DriverInput): Promise<Driver | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('Driver creation failed: No authenticated user')
+    return null
+  }
+
+  console.log('Creating driver with input:', driver)
 
   const payload = mapDriverInput(driver)
 
@@ -126,10 +131,12 @@ export async function createDriver(driver: DriverInput): Promise<Driver | null> 
     .single()
 
   if (error) {
-    console.error("Query error:", error)
+    console.error('Driver creation failed:', error)
+    console.error('Error details:', { message: error.message, code: error.code, details: error.details })
     return null
   }
 
+  console.log('Driver created successfully:', data)
   const result = data ? mapDriverRow(data) : null
   if (result) dispatchDriversUpdated()
   return result

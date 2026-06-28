@@ -1,7 +1,11 @@
 "use client"
 
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import type { TripInput } from '@/types/trip'
+
+type Vehicle = { id: string; vehicle_number: string }
+type Driver = { id: string; name: string }
 
 type TripFormProps = {
   initialData?: Partial<TripInput> | null
@@ -12,57 +16,73 @@ type TripFormProps = {
 }
 
 const emptyForm: TripInput = {
-  gr_id: '',
-  gr_number: '',
-  customer_id: '',
-  customer_name: '',
+  trip_number: '',
+  trip_date: '',
   vehicle_id: '',
   vehicle_number: '',
   driver_id: '',
   driver_name: '',
-  origin: '',
-  destination: '',
-  start_date: '',
-  expected_delivery_date: '',
-  actual_delivery_date: '',
-  freight_amount: 0,
-  advance_paid: 0,
-  status: 'Pending',
+  from_location: '',
+  to_location: '',
+  status: 'Created',
   remarks: '',
 }
 
 export default function TripForm({ initialData, onSubmit, onCancel, submitLabel, submitting = false }: TripFormProps) {
   const [formData, setFormData] = useState<TripInput>(emptyForm)
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [drivers, setDrivers] = useState<Driver[]>([])
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (initialData) {
-      setFormData({ ...emptyForm, ...initialData, actual_delivery_date: initialData.actual_delivery_date ?? '' })
+      setFormData({ ...emptyForm, ...initialData })
     }
+    loadVehiclesAndDrivers()
   }, [initialData])
 
-  function updateField(field: keyof TripInput, value: string | number) {
+  async function loadVehiclesAndDrivers() {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const [vehiclesRes, driversRes] = await Promise.all([
+      supabase.from('vehicles').select('id, vehicle_number').eq('user_id', user.id).eq('is_active', true),
+      supabase.from('drivers').select('id, name').eq('user_id', user.id),
+    ])
+
+    setVehicles((vehiclesRes.data as Vehicle[]) || [])
+    setDrivers((driversRes.data as Driver[]) || [])
+    setLoading(false)
+  }
+
+  function updateField(field: keyof TripInput, value: string) {
     setFormData((current) => ({ ...current, [field]: value }))
+  }
+
+  function handleVehicleChange(vehicleId: string) {
+    const vehicle = vehicles.find(v => v.id === vehicleId)
+    updateField('vehicle_id', vehicleId)
+    updateField('vehicle_number', vehicle?.vehicle_number || '')
+  }
+
+  function handleDriverChange(driverId: string) {
+    const driver = drivers.find(d => d.id === driverId)
+    updateField('driver_id', driverId)
+    updateField('driver_name', driver?.name || '')
   }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     onSubmit({
       ...formData,
-      gr_id: formData.gr_id.trim(),
-      gr_number: formData.gr_number.trim(),
-      customer_id: formData.customer_id.trim(),
-      customer_name: formData.customer_name.trim(),
+      trip_date: formData.trip_date,
       vehicle_id: formData.vehicle_id.trim(),
       vehicle_number: formData.vehicle_number.trim(),
       driver_id: formData.driver_id.trim(),
       driver_name: formData.driver_name.trim(),
-      origin: formData.origin.trim(),
-      destination: formData.destination.trim(),
-      start_date: formData.start_date,
-      expected_delivery_date: formData.expected_delivery_date,
-      actual_delivery_date: formData.actual_delivery_date?.trim() || undefined,
-      freight_amount: Number(formData.freight_amount || 0),
-      advance_paid: Number(formData.advance_paid || 0),
+      from_location: formData.from_location.trim(),
+      to_location: formData.to_location.trim(),
       status: formData.status,
       remarks: formData.remarks?.trim() || undefined,
     })
@@ -72,72 +92,44 @@ export default function TripForm({ initialData, onSubmit, onCancel, submitLabel,
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">GR ID</label>
-          <input value={formData.gr_id} onChange={(event) => updateField('gr_id', event.target.value)} className="input" placeholder="GR reference" />
+          <label className="mb-1 block text-sm font-semibold text-gray-700">Trip Date</label>
+          <input type="date" value={formData.trip_date} onChange={(event) => updateField('trip_date', event.target.value)} className="input" />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">GR Number</label>
-          <input value={formData.gr_number} onChange={(event) => updateField('gr_number', event.target.value)} className="input" placeholder="GR number" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Customer ID</label>
-          <input value={formData.customer_id} onChange={(event) => updateField('customer_id', event.target.value)} className="input" placeholder="Customer reference" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Customer Name</label>
-          <input value={formData.customer_name} onChange={(event) => updateField('customer_name', event.target.value)} className="input" placeholder="Customer name" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Vehicle ID</label>
-          <input value={formData.vehicle_id} onChange={(event) => updateField('vehicle_id', event.target.value)} className="input" placeholder="Vehicle reference" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Vehicle Number</label>
-          <input value={formData.vehicle_number} onChange={(event) => updateField('vehicle_number', event.target.value)} className="input" placeholder="Vehicle number" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Driver ID</label>
-          <input value={formData.driver_id} onChange={(event) => updateField('driver_id', event.target.value)} className="input" placeholder="Driver reference" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Driver Name</label>
-          <input value={formData.driver_name} onChange={(event) => updateField('driver_name', event.target.value)} className="input" placeholder="Driver name" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Origin</label>
-          <input value={formData.origin} onChange={(event) => updateField('origin', event.target.value)} className="input" placeholder="Origin" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Destination</label>
-          <input value={formData.destination} onChange={(event) => updateField('destination', event.target.value)} className="input" placeholder="Destination" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Start Date</label>
-          <input type="date" value={formData.start_date} onChange={(event) => updateField('start_date', event.target.value)} className="input" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Expected Delivery</label>
-          <input type="date" value={formData.expected_delivery_date} onChange={(event) => updateField('expected_delivery_date', event.target.value)} className="input" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Actual Delivery</label>
-          <input type="date" value={formData.actual_delivery_date ?? ''} onChange={(event) => updateField('actual_delivery_date', event.target.value)} className="input" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Freight Amount</label>
-          <input type="number" value={formData.freight_amount} onChange={(event) => updateField('freight_amount', Number(event.target.value))} className="input" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Advance Paid</label>
-          <input type="number" value={formData.advance_paid} onChange={(event) => updateField('advance_paid', Number(event.target.value))} className="input" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Status</label>
-          <select value={formData.status} onChange={(event) => updateField('status', event.target.value)} className="input">
-            {['Pending','Dispatched','In Transit','Delivered','Closed','Cancelled'].map((item) => (
-              <option key={item} value={item}>{item}</option>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">Vehicle</label>
+          <select 
+            value={formData.vehicle_id} 
+            onChange={(event) => handleVehicleChange(event.target.value)} 
+            className="input"
+            disabled={loading}
+          >
+            <option value="">Select Vehicle</option>
+            {vehicles.map((vehicle) => (
+              <option key={vehicle.id} value={vehicle.id}>{vehicle.vehicle_number}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">Driver</label>
+          <select 
+            value={formData.driver_id} 
+            onChange={(event) => handleDriverChange(event.target.value)} 
+            className="input"
+            disabled={loading}
+          >
+            <option value="">Select Driver</option>
+            {drivers.map((driver) => (
+              <option key={driver.id} value={driver.id}>{driver.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">From Location</label>
+          <input value={formData.from_location} onChange={(event) => updateField('from_location', event.target.value)} className="input" placeholder="Origin" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">To Location</label>
+          <input value={formData.to_location} onChange={(event) => updateField('to_location', event.target.value)} className="input" placeholder="Destination" />
         </div>
       </div>
 

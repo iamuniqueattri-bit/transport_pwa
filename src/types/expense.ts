@@ -1,7 +1,6 @@
 export interface Expense {
   id: string
   user_id: string
-  trip_id?: string | null
   vehicle_id: string
   vehicle_number: string
   category: "Diesel" | "Toll" | "Repair" | "Tyre" | "Food" | "Advance" | "Misc"

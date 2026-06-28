@@ -6,21 +6,14 @@ const TABLE = 'trips'
 type TripRow = {
   id: string
   user_id: string
-  gr_id: string
-  gr_number: string
-  customer_id: string
-  customer_name: string
+  trip_number: string
+  trip_date: string
   vehicle_id: string
   vehicle_number: string
   driver_id: string
   driver_name: string
-  origin: string
-  destination: string
-  start_date: string
-  expected_delivery_date: string
-  actual_delivery_date?: string | null
-  freight_amount: number
-  advance_paid: number
+  from_location: string
+  to_location: string
   status: Trip['status']
   remarks?: string | null
   created_at: string
@@ -31,21 +24,14 @@ function mapTripRow(row: TripRow): Trip {
   return {
     id: row.id,
     user_id: row.user_id,
-    gr_id: row.gr_id,
-    gr_number: row.gr_number,
-    customer_id: row.customer_id,
-    customer_name: row.customer_name,
+    trip_number: row.trip_number,
+    trip_date: row.trip_date,
     vehicle_id: row.vehicle_id,
     vehicle_number: row.vehicle_number,
     driver_id: row.driver_id,
     driver_name: row.driver_name,
-    origin: row.origin,
-    destination: row.destination,
-    start_date: row.start_date,
-    expected_delivery_date: row.expected_delivery_date,
-    actual_delivery_date: row.actual_delivery_date ?? undefined,
-    freight_amount: Number(row.freight_amount ?? 0),
-    advance_paid: Number(row.advance_paid ?? 0),
+    from_location: row.from_location,
+    to_location: row.to_location,
     status: row.status,
     remarks: row.remarks ?? undefined,
     created_at: row.created_at,
@@ -75,7 +61,7 @@ export async function getTrips(): Promise<Trip[]> {
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
-    .order('start_date', { ascending: false })
+    .order('trip_date', { ascending: false })
 
   if (error) {
     console.error('Query error:', error)
@@ -106,19 +92,29 @@ export async function getTripById(id: string): Promise<Trip | null> {
 
 export async function createTrip(input: TripInput): Promise<Trip | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('Trip creation failed: No authenticated user')
+    return null
+  }
+
+  console.log('Creating trip with input:', input)
+
+  // Auto-generate trip number
+  const tripNumber = `TRP${Date.now().toString().slice(-8)}`
 
   const { data, error } = await supabase
     .from(TABLE)
-    .insert([{ ...input, user_id: userId }])
+    .insert([{ ...input, user_id: userId, trip_number: tripNumber }])
     .select()
     .single()
 
   if (error) {
-    console.error('Query error:', error)
+    console.error('Trip creation failed:', error)
+    console.error('Error details:', { message: error.message, code: error.code, details: error.details })
     return null
   }
 
+  console.log('Trip created successfully:', data)
   return data ? mapTripRow(data as TripRow) : null
 }
 

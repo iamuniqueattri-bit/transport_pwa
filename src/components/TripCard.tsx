@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import TripStatusBadge from '@/components/TripStatusBadge'
-import { formatCurrency, toSafeNumber } from '@/lib/utils'
 import type { Trip } from '@/types/trip'
 
 type TripCardProps = {
@@ -16,20 +15,16 @@ export default function TripCard({ trip, onEdit, onDelete, onStatusChange }: Tri
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900">{trip.gr_number}</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{trip.trip_number}</h2>
             <TripStatusBadge status={trip.status} />
           </div>
-          <p className="text-sm text-gray-600">{trip.customer_name} • {trip.vehicle_number}</p>
-        </div>
-        <div className="text-right text-sm text-gray-600">
-          <p className="font-semibold text-gray-900">{formatCurrency(trip.freight_amount)}</p>
-          <p>{trip.driver_name}</p>
+          <p className="text-sm text-gray-600">{trip.vehicle_number} • {trip.driver_name}</p>
         </div>
       </div>
 
       <div className="text-sm text-gray-600">
-        <p>{trip.origin} → {trip.destination}</p>
-        <p>{trip.start_date} • ETA {trip.expected_delivery_date}</p>
+        <p>{trip.from_location} → {trip.to_location}</p>
+        <p>{trip.trip_date}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

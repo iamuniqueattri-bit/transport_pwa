@@ -20,7 +20,6 @@ function mapExpenseRow(row: ExpenseRow): Expense {
   return {
     id: row.id,
     user_id: row.user_id,
-    trip_id: row.trip_id ?? null,
     vehicle_id: row.vehicle_id,
     vehicle_number: row.vehicle_number,
     category: row.category,

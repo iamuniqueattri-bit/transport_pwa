@@ -36,9 +36,18 @@ export default function VehiclesPage() {
 
   async function fetchVehicles() {
     setLoading(true)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      console.error("Error fetching user:", userError)
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from("vehicles")
       .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -74,6 +83,12 @@ export default function VehiclesPage() {
   async function handleSave(e?: React.FormEvent<HTMLFormElement>) {
     if (e) e.preventDefault()
 
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      console.error("Error fetching user:", userError)
+      return
+    }
+
     const payload = {
       vehicle_number: vehicleNumber.trim(),
       vehicle_type: vehicleType.trim() || null,
@@ -81,6 +96,7 @@ export default function VehiclesPage() {
       driver_name: driverName.trim() || null,
       driver_phone: driverPhone.trim() || null,
       capacity: capacity.trim() || null,
+      user_id: user.id,
     }
 
     try {
@@ -90,6 +106,7 @@ export default function VehiclesPage() {
           .from("vehicles")
           .update(payload)
           .eq("id", editing.id)
+          .eq("user_id", user.id)
 
         if (error) throw error
       } else {
@@ -106,11 +123,18 @@ export default function VehiclesPage() {
   }
 
   async function toggleActive(vehicle: Vehicle) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      console.error("Error fetching user:", userError)
+      return
+    }
+
     const updated = !vehicle.is_active
     const { error } = await supabase
       .from("vehicles")
       .update({ is_active: updated })
       .eq("id", vehicle.id)
+      .eq("user_id", user.id)
 
     if (error) {
       console.error("Toggle active error:", error)

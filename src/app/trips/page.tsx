@@ -39,7 +39,7 @@ export default function TripsPage() {
 
   const filteredTrips = useMemo(() => {
     return trips.filter((trip) => {
-      const haystack = `${trip.gr_number} ${trip.customer_name} ${trip.vehicle_number} ${trip.driver_name}`.toLowerCase()
+      const haystack = `${trip.trip_number} ${trip.vehicle_number} ${trip.driver_name}`.toLowerCase()
       const matchesSearch = haystack.includes(search.toLowerCase())
       const matchesStatus = statusFilter === 'All' || trip.status === statusFilter
       return matchesSearch && matchesStatus
@@ -70,7 +70,7 @@ export default function TripsPage() {
   }
 
   async function handleDelete(trip: Trip) {
-    const confirmed = isBrowser ? window.confirm(`Delete trip ${trip.gr_number}?`) : true
+    const confirmed = isBrowser ? window.confirm(`Delete trip ${trip.trip_number}?`) : true
     if (!confirmed) return
     const ok = await deleteTrip(trip.id)
     if (ok) {
