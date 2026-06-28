@@ -54,9 +54,19 @@ const statuses = [
   async function fetchGRs() {
     setLoading(true)
 
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      console.error('[fetchGRs] No authenticated user:', userError)
+      setGrs([])
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
   .from("gr_entries")
   .select("*")
+  .eq("user_id", user.id)
   .order("gr_date", { ascending: false })
 
 console.log("GR Data:", data)
@@ -80,6 +90,13 @@ if (error) {
     return
   }
 
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    console.error('[saveGR] No authenticated user:', userError)
+    alert('Authentication required. Please log in.')
+    return
+  }
+
   try {
     setLoading(true)
 
@@ -97,6 +114,7 @@ if (error) {
       remarks,
     })
     .eq("id", editing.id)
+    .eq("user_id", user.id)
 
   if (error) throw error
 } else {
@@ -111,6 +129,7 @@ if (error) {
       payment_type: paymentType,
       status,
       remarks,
+      user_id: user.id,
     })
 
   }

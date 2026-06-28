@@ -34,10 +34,19 @@ export default function GRSelector({ customerId, selectedGRs, onSelect, onDesele
   async function fetchUnbilledGRs() {
     setLoading(true)
 
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      console.error('[GRSelector] No authenticated user:', userError)
+      setAvailableGRs([])
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from("trips")
       .select("*")
       .eq("customer_id", customerId)
+      .eq("user_id", user.id)
       .order("start_date", { ascending: false })
 
     if (error) {

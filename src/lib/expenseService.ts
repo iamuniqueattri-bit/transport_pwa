@@ -46,7 +46,10 @@ async function getCurrentUserId(): Promise<string | null> {
 
 export async function getExpenses(): Promise<Expense[]> {
   const userId = await getCurrentUserId()
-  if (!userId) return []
+  if (!userId) {
+    console.error('[getExpenses] No authenticated user')
+    return []
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -64,7 +67,10 @@ export async function getExpenses(): Promise<Expense[]> {
 
 export async function getExpenseById(id: string): Promise<Expense | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[getExpenseById] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -83,7 +89,10 @@ export async function getExpenseById(id: string): Promise<Expense | null> {
 
 export async function createExpense(input: ExpenseInput): Promise<Expense | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[createExpense] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -101,7 +110,10 @@ export async function createExpense(input: ExpenseInput): Promise<Expense | null
 
 export async function updateExpense(id: string, input: Partial<ExpenseInput>): Promise<Expense | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[updateExpense] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -121,7 +133,10 @@ export async function updateExpense(id: string, input: Partial<ExpenseInput>): P
 
 export async function deleteExpense(id: string): Promise<boolean> {
   const userId = await getCurrentUserId()
-  if (!userId) return false
+  if (!userId) {
+    console.error('[deleteExpense] No authenticated user')
+    return false
+  }
 
   const { error } = await supabase
     .from(TABLE)

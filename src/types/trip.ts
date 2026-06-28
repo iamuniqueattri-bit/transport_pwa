@@ -9,7 +9,7 @@ export interface Trip {
   driver_name: string
   from_location: string
   to_location: string
-  status: "Created" | "Dispatched" | "In Transit" | "Delivered" | "Closed"
+  status: 'Pending' | 'Dispatched' | 'In Transit' | 'Delivered' | 'Closed' | 'Cancelled'
   remarks?: string
   created_at: string
   updated_at: string

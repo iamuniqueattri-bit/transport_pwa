@@ -37,9 +37,19 @@ export default function CustomersPage() {
 
   async function fetchCustomers() {
     setLoading(true)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      console.error('[fetchCustomers] No authenticated user:', userError)
+      setCustomers([])
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from("customers")
       .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -72,12 +82,21 @@ export default function CustomersPage() {
 
   async function handleSave(e?: React.FormEvent<HTMLFormElement>) {
     if (e) e.preventDefault()
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      console.error('[handleSave] No authenticated user:', userError)
+      alert('Authentication required. Please log in.')
+      return
+    }
+
     const payload = {
       name: name.trim(),
       phone: phone.trim() || null,
       gst_number: gstNumber.trim() || null,
       city: city.trim() || null,
       address: address.trim() || null,
+      user_id: user.id,
     }
 
     try {
@@ -87,6 +106,7 @@ export default function CustomersPage() {
           .from("customers")
           .update(payload)
           .eq("id", editing.id)
+          .eq("user_id", user.id)
 
         if (error) throw error
       } else {

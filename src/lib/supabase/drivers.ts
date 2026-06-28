@@ -80,11 +80,15 @@ function dispatchDriversUpdated() {
 
 export async function getDrivers(): Promise<Driver[]> {
   const userId = await getCurrentUserId()
-  if (!userId) return []
+  if (!userId) {
+    console.error('[getDrivers] No authenticated user')
+    return []
+  }
 
   const { data, error } = await supabase
     .from("drivers")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -97,12 +101,16 @@ export async function getDrivers(): Promise<Driver[]> {
 
 export async function getDriverById(id: string): Promise<Driver | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[getDriverById] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from("drivers")
     .select("*")
     .eq("id", id)
+    .eq("user_id", userId)
     .single()
 
   if (error) {
@@ -122,7 +130,10 @@ export async function createDriver(driver: DriverInput): Promise<Driver | null> 
 
   console.log('Creating driver with input:', driver)
 
-  const payload = mapDriverInput(driver)
+  const payload = {
+    ...mapDriverInput(driver),
+    user_id: userId,
+  }
 
   const { data, error } = await supabase
     .from("drivers")
@@ -144,7 +155,10 @@ export async function createDriver(driver: DriverInput): Promise<Driver | null> 
 
 export async function updateDriver(driver: Driver): Promise<Driver | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[updateDriver] No authenticated user')
+    return null
+  }
 
   const payload = mapDriverInput(driver)
 
@@ -152,6 +166,7 @@ export async function updateDriver(driver: Driver): Promise<Driver | null> {
     .from("drivers")
     .update(payload)
     .eq("id", driver.id)
+    .eq("user_id", userId)
     .select()
     .single()
 
@@ -167,12 +182,16 @@ export async function updateDriver(driver: Driver): Promise<Driver | null> {
 
 export async function deleteDriver(id: string): Promise<boolean> {
   const userId = await getCurrentUserId()
-  if (!userId) return false
+  if (!userId) {
+    console.error('[deleteDriver] No authenticated user')
+    return false
+  }
 
   const { error } = await supabase
     .from("drivers")
     .delete()
     .eq("id", id)
+    .eq("user_id", userId)
 
   if (error) {
     console.error("Query error:", error)

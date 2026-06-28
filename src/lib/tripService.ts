@@ -55,7 +55,10 @@ async function getCurrentUserId(): Promise<string | null> {
 
 export async function getTrips(): Promise<Trip[]> {
   const userId = await getCurrentUserId()
-  if (!userId) return []
+  if (!userId) {
+    console.error('[getTrips] No authenticated user')
+    return []
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -73,7 +76,10 @@ export async function getTrips(): Promise<Trip[]> {
 
 export async function getTripById(id: string): Promise<Trip | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[getTripById] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -103,16 +109,23 @@ export async function createTrip(input: TripInput): Promise<Trip | null> {
   const tripNumber = `TRP${Date.now().toString().slice(-8)}`
 
   const { data, error } = await supabase
-    .from(TABLE)
-    .insert([{ ...input, user_id: userId, trip_number: tripNumber }])
-    .select()
-    .single()
+  .from(TABLE)
+  .insert([{
+    ...input,
+    user_id: userId,
+    trip_number: tripNumber,
 
-  if (error) {
-    console.error('Trip creation failed:', error)
-    console.error('Error details:', { message: error.message, code: error.code, details: error.details })
-    return null
-  }
+    // Temporary compatibility fields
+    origin: input.from_location,
+    destination: input.to_location,
+    start_date: input.trip_date,
+  }])
+  .select()
+  .single()
+
+  console.log('FULL ERROR')
+console.dir(error, { depth: null })
+alert(JSON.stringify(error, null, 2))
 
   console.log('Trip created successfully:', data)
   return data ? mapTripRow(data as TripRow) : null
@@ -120,7 +133,10 @@ export async function createTrip(input: TripInput): Promise<Trip | null> {
 
 export async function updateTrip(id: string, input: Partial<TripInput>): Promise<Trip | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[updateTrip] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -140,7 +156,10 @@ export async function updateTrip(id: string, input: Partial<TripInput>): Promise
 
 export async function deleteTrip(id: string): Promise<boolean> {
   const userId = await getCurrentUserId()
-  if (!userId) return false
+  if (!userId) {
+    console.error('[deleteTrip] No authenticated user')
+    return false
+  }
 
   const { error } = await supabase
     .from(TABLE)

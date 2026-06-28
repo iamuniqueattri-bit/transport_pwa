@@ -25,7 +25,14 @@ export default function ExpensesPage() {
 
   async function loadExpenses() {
     setLoading(true)
-    const [expenseData, vehicleData] = await Promise.all([getExpenses(), supabase.from('vehicles').select('id, vehicle_number').order('vehicle_number')])
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      console.error('[loadExpenses] No authenticated user:', userError)
+      setExpenses([])
+      setLoading(false)
+      return
+    }
+    const [expenseData, vehicleData] = await Promise.all([getExpenses(), supabase.from('vehicles').select('id, vehicle_number').eq('user_id', user.id).order('vehicle_number')])
     if (vehicleData.data) {
       setVehicleOptions(vehicleData.data.map((item: { id: string; vehicle_number: string }) => ({ id: item.id, label: item.vehicle_number })))
     }

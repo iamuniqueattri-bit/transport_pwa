@@ -24,7 +24,7 @@ const emptyForm: TripInput = {
   driver_name: '',
   from_location: '',
   to_location: '',
-  status: 'Created',
+  status: 'Pending',
   remarks: '',
 }
 

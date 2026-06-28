@@ -30,7 +30,10 @@ async function getCurrentUserId(): Promise<string | null> {
 
 export async function getVehicleLedger(): Promise<Array<{ vehicle_id: string; vehicle_number: string; totalTrips: number; totalFreight: number; totalExpenses: number; netProfit: number }>> {
   const userId = await getCurrentUserId()
-  if (!userId) return []
+  if (!userId) {
+    console.error('[getVehicleLedger] No authenticated user')
+    return []
+  }
 
   const [{ data: trips, error: tripsError }, { data: expenses, error: expensesError }] = await Promise.all([
     supabase.from('trips').select('vehicle_id, vehicle_number, freight_amount').eq('user_id', userId),
@@ -88,7 +91,10 @@ export async function getVehicleLedger(): Promise<Array<{ vehicle_id: string; ve
 
 export async function getDriverLedger(): Promise<Array<{ driver_id: string; driver_name: string; totalTrips: number; totalAdvances: number; totalEarnings: number; pendingAmount: number }>> {
   const userId = await getCurrentUserId()
-  if (!userId) return []
+  if (!userId) {
+    console.error('[getDriverLedger] No authenticated user')
+    return []
+  }
 
   const [{ data: trips, error: tripsError }, { data: expenses, error: expensesError }] = await Promise.all([
     supabase.from('trips').select('id, driver_id, driver_name, freight_amount, advance_paid').eq('user_id', userId),

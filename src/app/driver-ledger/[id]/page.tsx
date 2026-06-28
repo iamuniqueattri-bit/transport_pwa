@@ -14,9 +14,17 @@ export default function DriverLedgerDetailPage() {
     async function load() {
       if (!params?.id) return
       setLoading(true)
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.error('[DriverLedger] No authenticated user:', userError)
+        setLoading(false)
+        return
+      }
+
       const [{ data: driverData }, { data: tripData }] = await Promise.all([
-        supabase.from('drivers').select('name').eq('id', params.id).single(),
-        supabase.from('trips').select('id, gr_number, freight_amount, advance_paid, status').eq('driver_id', params.id),
+        supabase.from('drivers').select('name').eq('id', params.id).eq('user_id', user.id).single(),
+        supabase.from('trips').select('id, gr_number, freight_amount, advance_paid, status').eq('driver_id', params.id).eq('user_id', user.id),
       ])
       setDriver(driverData as { name: string } | null)
       setTrips((tripData as Array<{ id: string; gr_number: string; freight_amount: number; advance_paid: number; status: string }>) || [])

@@ -27,9 +27,18 @@ export default function CustomerSelector({ selectedCustomer, onSelect }: Custome
 
   async function fetchCustomers() {
     setLoading(true)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      console.error('[CustomerSelector] No authenticated user:', userError)
+      setCustomers([])
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from("customers")
       .select("*")
+      .eq("user_id", user.id)
       .order("name", { ascending: true })
 
     if (error) {

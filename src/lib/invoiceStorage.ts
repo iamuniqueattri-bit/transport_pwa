@@ -75,7 +75,10 @@ async function getCurrentUserId(): Promise<string | null> {
 
 export async function getInvoices(): Promise<InvoiceListItem[]> {
   const userId = await getCurrentUserId()
-  if (!userId) return []
+  if (!userId) {
+    console.error('[getInvoices] No authenticated user')
+    return []
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -99,7 +102,10 @@ export async function getInvoices(): Promise<InvoiceListItem[]> {
 
 export async function getInvoiceById(id: string): Promise<Invoice | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[getInvoiceById] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -126,6 +132,7 @@ export interface InvoiceStats {
 export async function getInvoiceStats(): Promise<InvoiceStats> {
   const userId = await getCurrentUserId()
   if (!userId) {
+    console.error('[getInvoiceStats] No authenticated user')
     return {
       totalInvoices: 0,
       draftInvoices: 0,
@@ -166,6 +173,7 @@ export async function getInvoiceStats(): Promise<InvoiceStats> {
 export async function generateInvoiceNumber(): Promise<string> {
   const userId = await getCurrentUserId()
   if (!userId) {
+    console.error('[generateInvoiceNumber] No authenticated user')
     const timestamp = Date.now()
     return `INV-${timestamp}`
   }
@@ -191,7 +199,10 @@ export async function generateInvoiceNumber(): Promise<string> {
 
 export async function getInvoicesByCustomer(customerId: string): Promise<InvoiceListItem[]> {
   const userId = await getCurrentUserId()
-  if (!userId) return []
+  if (!userId) {
+    console.error('[getInvoicesByCustomer] No authenticated user')
+    return []
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -262,7 +273,10 @@ export interface InvoiceInput {
 
 export async function saveDraftInvoice(input: InvoiceInput): Promise<Invoice | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[saveDraftInvoice] No authenticated user')
+    return null
+  }
 
   const invoiceNo = await generateInvoiceNumber()
 
@@ -327,7 +341,10 @@ export async function saveDraftInvoice(input: InvoiceInput): Promise<Invoice | n
 
 export async function finalizeInvoice(invoiceId: string): Promise<Invoice | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[finalizeInvoice] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -347,7 +364,10 @@ export async function finalizeInvoice(invoiceId: string): Promise<Invoice | null
 
 export async function updateInvoiceStatus(invoiceId: string, status: Invoice['status']): Promise<Invoice | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[updateInvoiceStatus] No authenticated user')
+    return null
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -367,7 +387,10 @@ export async function updateInvoiceStatus(invoiceId: string, status: Invoice['st
 
 export async function markInvoicePaid(invoiceId: string, amount: number): Promise<Invoice | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[markInvoicePaid] No authenticated user')
+    return null
+  }
 
   const invoice = await getInvoiceById(invoiceId)
   if (!invoice) return null
@@ -404,7 +427,10 @@ export async function markInvoicePaid(invoiceId: string, amount: number): Promis
 
 export async function duplicateInvoice(invoiceId: string): Promise<Invoice | null> {
   const userId = await getCurrentUserId()
-  if (!userId) return null
+  if (!userId) {
+    console.error('[duplicateInvoice] No authenticated user')
+    return null
+  }
 
   const originalInvoice = await getInvoiceById(invoiceId)
   if (!originalInvoice) return null

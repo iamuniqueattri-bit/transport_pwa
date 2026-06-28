@@ -50,8 +50,15 @@ export default function InvoiceDetailsPage() {
 
         setInvoice(invoiceData)
 
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError || !user) {
+          console.error('[InvoiceDetails] No authenticated user:', userError)
+          setLoading(false)
+          return
+        }
+
         const [{ data: customerData }, { data: itemsData }] = await Promise.all([
-          supabase.from("customers").select("customer_name").eq("id", invoiceData.customer_id).single(),
+          supabase.from("customers").select("customer_name").eq("id", invoiceData.customer_id).eq("user_id", user.id).single(),
           supabase
             .from("invoice_items")
             .select(`

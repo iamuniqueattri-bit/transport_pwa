@@ -15,10 +15,18 @@ export default function VehicleLedgerDetailPage() {
     async function load() {
       if (!params?.id) return
       setLoading(true)
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.error('[VehicleLedger] No authenticated user:', userError)
+        setLoading(false)
+        return
+      }
+
       const [{ data: vehicleData }, { data: tripData }, { data: expenseData }] = await Promise.all([
-        supabase.from('vehicles').select('vehicle_number').eq('id', params.id).single(),
-        supabase.from('trips').select('id, gr_number, freight_amount, status').eq('vehicle_id', params.id),
-        supabase.from('expenses').select('id, category, amount, date').eq('vehicle_id', params.id),
+        supabase.from('vehicles').select('vehicle_number').eq('id', params.id).eq('user_id', user.id).single(),
+        supabase.from('trips').select('id, gr_number, freight_amount, status').eq('vehicle_id', params.id).eq('user_id', user.id),
+        supabase.from('expenses').select('id, category, amount, date').eq('vehicle_id', params.id).eq('user_id', user.id),
       ])
       setVehicle(vehicleData as { vehicle_number: string } | null)
       setTrips((tripData as Array<{ id: string; gr_number: string; freight_amount: number; status: string }>) || [])
