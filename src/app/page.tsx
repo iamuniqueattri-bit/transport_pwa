@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedSession } from '@/lib/auth'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,22 +15,21 @@ export default function LoginPage() {
 
   useEffect(() => {
     async function checkSession() {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser()
+      try {
+        const session = await getAuthenticatedSession()
 
-      if (error) {
-        console.error('Session check error:', error)
-        return
-      }
+        if (!session) {
+          return
+        }
 
-      if (user) {
         router.push('/dashboard')
+      } catch (error) {
+        console.error('[LoginPage] Session check error:', error)
+        return
       }
     }
 
-    checkSession()
+    void checkSession()
   }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {

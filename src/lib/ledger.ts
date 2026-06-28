@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedUserId } from '@/lib/auth'
 
 export type LedgerSummary = {
   totalTrips: number
@@ -15,17 +16,7 @@ export type DriverLedgerSummary = {
 }
 
 async function getCurrentUserId(): Promise<string | null> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error) {
-    console.error('[ledger] getUser error:', error)
-    return null
-  }
-
-  return user?.id ?? null
+  return getAuthenticatedUserId()
 }
 
 export async function getVehicleLedger(): Promise<Array<{ vehicle_id: string; vehicle_number: string; totalTrips: number; totalFreight: number; totalExpenses: number; netProfit: number }>> {

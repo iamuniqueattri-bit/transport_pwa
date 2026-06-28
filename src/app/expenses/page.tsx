@@ -8,6 +8,7 @@ import ExpenseFilters from '@/components/ExpenseFilters'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { deleteExpense, getExpenses } from '@/lib/expenseService'
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedSession } from '@/lib/auth'
 import { isBrowser } from '@/lib/utils'
 import type { Expense } from '@/types/expense'
 
@@ -23,21 +24,37 @@ export default function ExpensesPage() {
   const [pullDistance, setPullDistance] = useState(0)
   const touchStartY = useRef<number | null>(null)
 
-  async function loadExpenses() {
+  async function loadExpenses(): Promise<boolean> {
     setLoading(true)
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      console.error('[loadExpenses] No authenticated user:', userError)
+    try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        setExpenses([])
+        setVehicleOptions([])
+        return false
+      }
+
+      const [expenseData, vehicleData] = await Promise.all([
+        getExpenses(),
+        supabase.from('vehicles').select('id, vehicle_number').eq('user_id', session.user.id).order('vehicle_number'),
+      ])
+
+      if (vehicleData.error) {
+        console.error('[loadExpenses] Failed to load vehicle options:', vehicleData.error)
+      } else {
+        setVehicleOptions(vehicleData.data?.map((item: { id: string; vehicle_number: string }) => ({ id: item.id, label: item.vehicle_number })) || [])
+      }
+
+      setExpenses(expenseData)
+      return true
+    } catch (error) {
+      console.error('[loadExpenses] Failed to load expenses:', error)
       setExpenses([])
+      setVehicleOptions([])
+      return false
+    } finally {
       setLoading(false)
-      return
     }
-    const [expenseData, vehicleData] = await Promise.all([getExpenses(), supabase.from('vehicles').select('id, vehicle_number').eq('user_id', user.id).order('vehicle_number')])
-    if (vehicleData.data) {
-      setVehicleOptions(vehicleData.data.map((item: { id: string; vehicle_number: string }) => ({ id: item.id, label: item.vehicle_number })))
-    }
-    setExpenses(expenseData)
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -78,8 +95,8 @@ export default function ExpensesPage() {
 
   const handleTouchEnd = async () => {
     if (pullDistance > 70) {
-      await loadExpenses()
-      setToast('Expenses refreshed')
+      const refreshed = await loadExpenses()
+      setToast(refreshed ? 'Expenses refreshed' : 'Unable to refresh expenses')
     }
     setPullDistance(0)
     touchStartY.current = null
@@ -88,10 +105,17 @@ export default function ExpensesPage() {
   async function handleDelete(expense: Expense) {
     const confirmed = isBrowser ? window.confirm(`Delete ${expense.category} expense?`) : true
     if (!confirmed) return
-    const ok = await deleteExpense(expense.id)
-    if (ok) {
-      setExpenses((current) => current.filter((item) => item.id !== expense.id))
-      setToast('Expense deleted')
+    try {
+      const ok = await deleteExpense(expense.id)
+      if (ok) {
+        setExpenses((current) => current.filter((item) => item.id !== expense.id))
+        setToast('Expense deleted')
+      } else {
+        setToast('Unable to delete expense')
+      }
+    } catch (error) {
+      console.error('[handleDelete] Failed to delete expense:', error)
+      setToast('Unable to delete expense')
     }
   }
 

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedUserId } from '@/lib/auth'
 import type { Trip, TripInput } from '@/types/trip'
 
 const TABLE = 'trips'
@@ -40,17 +41,7 @@ function mapTripRow(row: TripRow): Trip {
 }
 
 async function getCurrentUserId(): Promise<string | null> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error) {
-    console.error('[tripService] getUser error:', error)
-    return null
-  }
-
-  return user?.id ?? null
+  return getAuthenticatedUserId()
 }
 
 export async function getTrips(): Promise<Trip[]> {
@@ -97,38 +88,40 @@ export async function getTripById(id: string): Promise<Trip | null> {
 }
 
 export async function createTrip(input: TripInput): Promise<Trip | null> {
-  const userId = await getCurrentUserId()
-  if (!userId) {
-    console.error('Trip creation failed: No authenticated user')
-    return null
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      throw new Error('Authentication required before creating a trip')
+    }
+
+    console.log('[tripService] Creating trip with input:', input)
+
+    const tripNumber = `TRP${Date.now().toString().slice(-8)}`
+
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert([{
+        ...input,
+        user_id: userId,
+        trip_number: tripNumber,
+        origin: input.from_location,
+        destination: input.to_location,
+        start_date: input.trip_date,
+      }])
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[tripService] Trip creation error:', error)
+      throw error
+    }
+
+    console.log('[tripService] Trip created successfully:', data)
+    return data ? mapTripRow(data as TripRow) : null
+  } catch (error) {
+    console.error('[tripService] createTrip failed:', error)
+    throw error instanceof Error ? error : new Error('Unable to create trip')
   }
-
-  console.log('Creating trip with input:', input)
-
-  // Auto-generate trip number
-  const tripNumber = `TRP${Date.now().toString().slice(-8)}`
-
-  const { data, error } = await supabase
-  .from(TABLE)
-  .insert([{
-    ...input,
-    user_id: userId,
-    trip_number: tripNumber,
-
-    // Temporary compatibility fields
-    origin: input.from_location,
-    destination: input.to_location,
-    start_date: input.trip_date,
-  }])
-  .select()
-  .single()
-
-  console.log('FULL ERROR')
-console.dir(error, { depth: null })
-alert(JSON.stringify(error, null, 2))
-
-  console.log('Trip created successfully:', data)
-  return data ? mapTripRow(data as TripRow) : null
 }
 
 export async function updateTrip(id: string, input: Partial<TripInput>): Promise<Trip | null> {

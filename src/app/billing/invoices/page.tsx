@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedSession } from "@/lib/auth"
 import { getInvoices } from "@/lib/invoiceStorage"
 import type { InvoiceListItem } from "@/types/invoice"
 import InvoiceTable from "@/components/billing/InvoiceTable"
@@ -20,13 +21,13 @@ export default function InvoicesPage() {
     setLoading(true)
 
     try {
-      console.log("Invoices page loading for:", userId)
+      console.log("[InvoicesPage] Loading invoices for:", userId)
 
       const invoiceData = await getInvoices()
 
       setInvoices(invoiceData)
     } catch (error) {
-      console.error("Invoices page initialization failed:", error)
+      console.error("[InvoicesPage] loadInvoices failed:", error)
       setInvoices([])
     } finally {
       setLoading(false)
@@ -38,23 +39,21 @@ export default function InvoicesPage() {
 
     const initializeInvoices = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        const session = await getAuthenticatedSession()
 
-        console.log("Invoices page user:", user)
+        console.log("[InvoicesPage] Session:", session?.user?.id)
 
         if (!mounted) return
 
-        if (!user) {
-          console.warn("Invoices page: no authenticated user")
+        if (!session?.user) {
+          console.warn("[InvoicesPage] No authenticated session")
           setLoading(false)
           return
         }
 
-        await loadInvoices(user.id)
+        await loadInvoices(session.user.id)
       } catch (error) {
-        console.error("Invoices page initialization failed:", error)
+        console.error("[InvoicesPage] initialization failed:", error)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -66,7 +65,7 @@ export default function InvoicesPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        loadInvoices(session.user.id)
+        void loadInvoices(session.user.id)
       }
     })
 

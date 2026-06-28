@@ -14,19 +14,25 @@ export default function NewDriverPage() {
 
   async function handleSave(driver: Parameters<typeof createDriver>[0]) {
     setLoading(true)
-    const saved = await createDriver(driver)
-    setLoading(false)
+    try {
+      const saved = await createDriver(driver)
 
-    if (!saved) {
-      setToastMessage("Unable to save driver")
-      return
-    }
+      if (!saved) {
+        setToastMessage("Unable to save driver")
+        return
+      }
 
-    setToastMessage("Driver saved successfully")
-    if (isBrowser) {
-      window.setTimeout(() => {
-        router.push("/drivers")
-      }, 700)
+      setToastMessage("Driver saved successfully")
+      if (isBrowser) {
+        window.setTimeout(() => {
+          router.push("/drivers")
+        }, 700)
+      }
+    } catch (error) {
+      console.error('[NewDriverPage] Driver creation failed:', error)
+      setToastMessage(error instanceof Error ? error.message : "Unable to save driver")
+    } finally {
+      setLoading(false)
     }
   }
 

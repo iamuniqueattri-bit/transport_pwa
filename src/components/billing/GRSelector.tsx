@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedSession } from "@/lib/auth"
 import { formatCurrency } from "@/lib/utils"
 
 type GR = {
@@ -26,35 +27,50 @@ export default function GRSelector({ customerId, selectedGRs, onSelect, onDesele
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
+
     if (customerId) {
-      fetchUnbilledGRs()
+      void fetchUnbilledGRs(cancelled)
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [customerId])
 
-  async function fetchUnbilledGRs() {
+  async function fetchUnbilledGRs(cancelled = false) {
     setLoading(true)
+    try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        if (!cancelled) {
+          setAvailableGRs([])
+        }
+        return
+      }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      console.error('[GRSelector] No authenticated user:', userError)
-      setAvailableGRs([])
-      setLoading(false)
-      return
+      const { data, error } = await supabase
+        .from("trips")
+        .select("*")
+        .eq("customer_id", customerId)
+        .eq("user_id", session.user.id)
+        .order("start_date", { ascending: false })
+
+      if (error) {
+        console.error("[GRSelector] Error fetching GRs:", error)
+      } else if (!cancelled) {
+        setAvailableGRs((data as GR[]) || [])
+      }
+    } catch (error) {
+      console.error("[GRSelector] Failed to load GRs:", error)
+      if (!cancelled) {
+        setAvailableGRs([])
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false)
+      }
     }
-
-    const { data, error } = await supabase
-      .from("trips")
-      .select("*")
-      .eq("customer_id", customerId)
-      .eq("user_id", user.id)
-      .order("start_date", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching GRs:", error)
-    } else {
-      setAvailableGRs((data as GR[]) || [])
-    }
-    setLoading(false)
   }
 
   const isSelected = (grId: string) => selectedGRs.some((gr) => gr.id === grId)
@@ -70,9 +86,11 @@ export default function GRSelector({ customerId, selectedGRs, onSelect, onDesele
       </div>
 
       <div className="space-y-3 max-h-64 overflow-y-auto">
+        {loading && <div className="card text-center text-gray-600">Loading GR options...</div>}
         {displayGRs.map((gr) => (
           <button
             key={gr.id}
+            type="button"
             onClick={() => onSelect(gr)}
             className="card w-full text-left transition hover:shadow-md"
           >
@@ -112,6 +130,7 @@ export default function GRSelector({ customerId, selectedGRs, onSelect, onDesele
                   <div className="text-sm text-green-700">{formatCurrency(gr.freight || 0)}</div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => onDeselect(gr.id)}
                   className="text-sm text-red-600 hover:text-red-800"
                 >

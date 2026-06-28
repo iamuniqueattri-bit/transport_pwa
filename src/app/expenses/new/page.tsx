@@ -13,12 +13,18 @@ export default function NewExpensePage() {
   async function handleSubmit(payload: Parameters<typeof createExpense>[0]) {
     setSubmitting(true)
     setError(null)
-    const created = await createExpense(payload)
-    setSubmitting(false)
-    if (created) {
-      router.push('/expenses')
-    } else {
-      setError('Unable to create expense right now.')
+    try {
+      const created = await createExpense(payload)
+      if (created) {
+        router.push('/expenses')
+      } else {
+        setError('Unable to create expense right now.')
+      }
+    } catch (error) {
+      console.error('[NewExpensePage] Expense creation failed:', error)
+      setError(error instanceof Error ? error.message : 'Unable to create expense right now.')
+    } finally {
+      setSubmitting(false)
     }
   }
 

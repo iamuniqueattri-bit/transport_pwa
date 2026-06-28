@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-import { error } from "console"
+import { getAuthenticatedSession } from "@/lib/auth"
 
 type GR = {
   id: string
@@ -53,35 +53,34 @@ const statuses = [
 
   async function fetchGRs() {
     setLoading(true)
+    try {
+      const session = await getAuthenticatedSession()
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    
-    if (userError || !user) {
-      console.error('[fetchGRs] No authenticated user:', userError)
+      if (!session) {
+        setGrs([])
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("gr_entries")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("gr_date", { ascending: false })
+
+      console.log("[GRPage] GR Data:", data)
+      console.log("[GRPage] GR Error:", error)
+
+      if (error) {
+        console.error("[fetchGRs] Error fetching GR entries:", error)
+      } else {
+        setGrs((data as GR[]) || [])
+      }
+    } catch (error) {
+      console.error('[fetchGRs] Failed to load GR entries:', error)
       setGrs([])
+    } finally {
       setLoading(false)
-      return
     }
-
-    const { data, error } = await supabase
-  .from("gr_entries")
-  .select("*")
-  .eq("user_id", user.id)
-  .order("gr_date", { ascending: false })
-
-console.log("GR Data:", data)
-console.log("GR Error:", error)
-
-    console.log("GR fetch data:", data)
-console.log("GR fetch error:", error)
-
-if (error) {
-  console.error(error)
-} else {
-  setGrs((data as GR[]) || [])
-}
-
-    setLoading(false)
   }
 
   async function saveGR() {
@@ -90,14 +89,12 @@ if (error) {
     return
   }
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) {
-    console.error('[saveGR] No authenticated user:', userError)
-    alert('Authentication required. Please log in.')
-    return
-  }
-
   try {
+    const session = await getAuthenticatedSession()
+    if (!session) {
+      throw new Error('Authentication required. Please log in.')
+    }
+
     setLoading(true)
 
     if (editing) {
@@ -129,9 +126,12 @@ if (error) {
       payment_type: paymentType,
       status,
       remarks,
-      user_id: user.id,
+      user_id: session.user.id,
     })
 
+    if (error) {
+      throw error
+    }
   }
 
 
@@ -150,8 +150,8 @@ if (error) {
     setRemarks("")
 
   } catch (error) {
-    console.error(error)
-    alert("Failed to save GR")
+    console.error('[saveGR] Failed to save GR:', error)
+    alert(error instanceof Error ? error.message : "Failed to save GR")
   } finally {
     setLoading(false)
   }

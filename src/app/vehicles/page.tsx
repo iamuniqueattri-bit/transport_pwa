@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedSession } from "@/lib/auth"
 
 type Vehicle = {
   id: string
@@ -36,26 +37,30 @@ export default function VehiclesPage() {
 
   async function fetchVehicles() {
     setLoading(true)
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    
-    if (userError || !user) {
-      console.error("Error fetching user:", userError)
+    try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        setVehicles([])
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("[fetchVehicles] Error fetching vehicles:", error)
+      } else {
+        setVehicles((data as Vehicle[]) || [])
+      }
+    } catch (error) {
+      console.error("[fetchVehicles] Failed to load vehicles:", error)
+      setVehicles([])
+    } finally {
       setLoading(false)
-      return
     }
-
-    const { data, error } = await supabase
-      .from("vehicles")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching vehicles:", error)
-    } else {
-      setVehicles((data as Vehicle[]) || [])
-    }
-    setLoading(false)
   }
 
   function openAddForm() {
@@ -83,30 +88,29 @@ export default function VehiclesPage() {
   async function handleSave(e?: React.FormEvent<HTMLFormElement>) {
     if (e) e.preventDefault()
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      console.error("Error fetching user:", userError)
-      return
-    }
-
-    const payload = {
-      vehicle_number: vehicleNumber.trim(),
-      vehicle_type: vehicleType.trim() || null,
-      owner_name: ownerName.trim() || null,
-      driver_name: driverName.trim() || null,
-      driver_phone: driverPhone.trim() || null,
-      capacity: capacity.trim() || null,
-      user_id: user.id,
-    }
-
     try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        throw new Error('Authentication required. Please log in.')
+      }
+
+      const payload = {
+        vehicle_number: vehicleNumber.trim(),
+        vehicle_type: vehicleType.trim() || null,
+        owner_name: ownerName.trim() || null,
+        driver_name: driverName.trim() || null,
+        driver_phone: driverPhone.trim() || null,
+        capacity: capacity.trim() || null,
+        user_id: session.user.id,
+      }
+
       setLoading(true)
       if (editing) {
         const { error } = await supabase
           .from("vehicles")
           .update(payload)
           .eq("id", editing.id)
-          .eq("user_id", user.id)
+          .eq("user_id", session.user.id)
 
         if (error) throw error
       } else {
@@ -116,35 +120,39 @@ export default function VehiclesPage() {
       await fetchVehicles()
       setIsFormOpen(false)
     } catch (err) {
-      console.error("Save error:", err)
+      console.error("[handleSave] Save error:", err)
+      alert(err instanceof Error ? err.message : 'Unable to save vehicle')
     } finally {
       setLoading(false)
     }
   }
 
   async function toggleActive(vehicle: Vehicle) {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      console.error("Error fetching user:", userError)
-      return
-    }
+    try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        throw new Error('Authentication required. Please log in.')
+      }
 
-    const updated = !vehicle.is_active
-    const { error } = await supabase
-      .from("vehicles")
-      .update({ is_active: updated })
-      .eq("id", vehicle.id)
-      .eq("user_id", user.id)
+      const updated = !vehicle.is_active
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ is_active: updated })
+        .eq("id", vehicle.id)
+        .eq("user_id", session.user.id)
 
-    if (error) {
-      console.error("Toggle active error:", error)
-      return
-    }
-    setVehicles((current) =>
-      current.map((item) =>
-        item.id === vehicle.id ? { ...item, is_active: updated } : item
+      if (error) {
+        console.error("[toggleActive] Toggle active error:", error)
+        return
+      }
+      setVehicles((current) =>
+        current.map((item) =>
+          item.id === vehicle.id ? { ...item, is_active: updated } : item
+        )
       )
-    )
+    } catch (error) {
+      console.error('[toggleActive] Failed to update vehicle active state:', error)
+    }
   }
 
   function filteredVehicles() {

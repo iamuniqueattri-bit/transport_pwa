@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedUserId } from "@/lib/auth"
 
 export type Driver = {
   id: string
@@ -59,17 +60,7 @@ function mapDriverInput(driver: DriverInput) {
 }
 
 async function getCurrentUserId(): Promise<string | null> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error) {
-    console.error("[SupabaseDrivers] getUser error:", error)
-    return null
-  }
-
-  return user?.id ?? null
+  return getAuthenticatedUserId()
 }
 
 function dispatchDriversUpdated() {

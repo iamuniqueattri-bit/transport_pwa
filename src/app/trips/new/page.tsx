@@ -15,17 +15,22 @@ export default function NewTripPage() {
   async function handleSubmit(payload: Parameters<typeof createTrip>[0]) {
     setSubmitting(true)
     setError(null)
-    const created = await createTrip(payload)
-    setSubmitting(false)
-    if (created) {
-      setToastMessage('Trip created successfully')
-      if (isBrowser) {
-        window.setTimeout(() => {
-          router.push('/trips')
-        }, 700)
+    try {
+      const created = await createTrip(payload)
+      if (created) {
+        setToastMessage('Trip created successfully')
+        if (isBrowser) {
+          window.setTimeout(() => {
+            router.push('/trips')
+          }, 700)
+        }
       }
-    } else {
-      setError('Unable to create trip. Please check console for details and try again.')
+    } catch (error) {
+      console.error('[NewTripPage] Trip creation failed:', error)
+      setError(error instanceof Error ? error.message : 'Unable to create trip')
+      setToastMessage(null)
+    } finally {
+      setSubmitting(false)
     }
   }
 

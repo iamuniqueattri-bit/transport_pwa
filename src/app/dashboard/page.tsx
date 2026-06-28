@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedSession } from "@/lib/auth"
 import { formatCurrency, isBrowser, toSafeNumber } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -51,7 +52,7 @@ export default function DashboardPage() {
     setLoading(true)
 
     try {
-      console.log("Dashboard loading stats for:", userId)
+      console.log("[DashboardPage] Loading stats for:", userId)
 
       // Safari-compatible date parsing using ISO strings
       const now = new Date()
@@ -69,10 +70,10 @@ export default function DashboardPage() {
         supabase.from("expenses").select("amount").eq("user_id", userId).gte("date", startOfMonth).lt("date", endOfMonth),
       ])
 
-      console.log("Customers result:", customers)
-      console.log("Vehicles result:", vehicles)
-      console.log("Drivers result:", drivers)
-      console.log("GR result:", grs)
+      console.log("[DashboardPage] Customers result:", customers)
+      console.log("[DashboardPage] Vehicles result:", vehicles)
+      console.log("[DashboardPage] Drivers result:", drivers)
+      console.log("[DashboardPage] GR result:", grs)
 
       if (customers.error) {
         console.error("Query error:", customers.error)
@@ -128,7 +129,7 @@ export default function DashboardPage() {
         outstandingReceivables,
       })
     } catch (error) {
-      console.error("Dashboard initialization failed:", error)
+      console.error("[DashboardPage] loadStats failed:", error)
       setStats(emptyStats)
     } finally {
       setLoading(false)
@@ -140,23 +141,21 @@ export default function DashboardPage() {
 
     const initializeDashboard = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        const session = await getAuthenticatedSession()
 
-        console.log("Dashboard user:", user)
+        console.log("[DashboardPage] Session:", session?.user?.id)
 
         if (!mounted) return
 
-        if (!user) {
-          console.warn("Dashboard: no authenticated user")
+        if (!session?.user) {
+          console.warn("[DashboardPage] No authenticated session")
           setLoading(false)
           return
         }
 
-        await loadStats(user.id)
+        await loadStats(session.user.id)
       } catch (error) {
-        console.error("Dashboard initialization failed:", error)
+        console.error("[DashboardPage] initialization failed:", error)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -168,14 +167,14 @@ export default function DashboardPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        loadStats(session.user.id)
+        void loadStats(session.user.id)
       }
     })
 
     const handleFocus = () => {
-      void supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user?.id) {
-          void loadStats(user.id)
+      void getAuthenticatedSession().then((session) => {
+        if (session?.user?.id) {
+          void loadStats(session.user.id)
         }
       })
     }

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedUserId } from '@/lib/auth'
 import type { Expense, ExpenseInput } from '@/types/expense'
 
 const TABLE = 'expenses'
@@ -31,17 +32,7 @@ function mapExpenseRow(row: ExpenseRow): Expense {
 }
 
 async function getCurrentUserId(): Promise<string | null> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error) {
-    console.error('[expenseService] getUser error:', error)
-    return null
-  }
-
-  return user?.id ?? null
+  return getAuthenticatedUserId()
 }
 
 export async function getExpenses(): Promise<Expense[]> {

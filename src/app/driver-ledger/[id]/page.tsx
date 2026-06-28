@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedSession } from '@/lib/auth'
 
 export default function DriverLedgerDetailPage() {
   const params = useParams<{ id: string }>()
@@ -14,24 +15,38 @@ export default function DriverLedgerDetailPage() {
     async function load() {
       if (!params?.id) return
       setLoading(true)
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        console.error('[DriverLedger] No authenticated user:', userError)
-        setLoading(false)
-        return
-      }
+      try {
+        const session = await getAuthenticatedSession()
+        if (!session) {
+          setDriver(null)
+          setTrips([])
+          return
+        }
 
-      const [{ data: driverData }, { data: tripData }] = await Promise.all([
-        supabase.from('drivers').select('name').eq('id', params.id).eq('user_id', user.id).single(),
-        supabase.from('trips').select('id, gr_number, freight_amount, advance_paid, status').eq('driver_id', params.id).eq('user_id', user.id),
-      ])
-      setDriver(driverData as { name: string } | null)
-      setTrips((tripData as Array<{ id: string; gr_number: string; freight_amount: number; advance_paid: number; status: string }>) || [])
-      setLoading(false)
+        const [{ data: driverData, error: driverError }, { data: tripData, error: tripError }] = await Promise.all([
+          supabase.from('drivers').select('name').eq('id', params.id).eq('user_id', session.user.id).single(),
+          supabase.from('trips').select('id, gr_number, freight_amount, advance_paid, status').eq('driver_id', params.id).eq('user_id', session.user.id),
+        ])
+
+        if (driverError) {
+          console.error('[DriverLedger] Driver lookup failed:', driverError)
+        }
+        if (tripError) {
+          console.error('[DriverLedger] Trip lookup failed:', tripError)
+        }
+
+        setDriver(driverData as { name: string } | null)
+        setTrips((tripData as Array<{ id: string; gr_number: string; freight_amount: number; advance_paid: number; status: string }>) || [])
+      } catch (error) {
+        console.error('[DriverLedger] Failed to load detail ledger:', error)
+        setDriver(null)
+        setTrips([])
+      } finally {
+        setLoading(false)
+      }
     }
 
-    load()
+    void load()
   }, [params?.id])
 
   if (loading) {

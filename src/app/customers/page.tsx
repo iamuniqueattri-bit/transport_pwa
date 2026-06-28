@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedSession } from "@/lib/auth"
 
 type Customer = {
   id: string
@@ -37,27 +38,31 @@ export default function CustomersPage() {
 
   async function fetchCustomers() {
     setLoading(true)
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    
-    if (userError || !user) {
-      console.error('[fetchCustomers] No authenticated user:', userError)
+    try {
+      const session = await getAuthenticatedSession()
+
+      if (!session) {
+        setCustomers([])
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error('[fetchCustomers] Error fetching customers:', error)
+      } else {
+        setCustomers((data as Customer[]) || [])
+      }
+    } catch (error) {
+      console.error('[fetchCustomers] Failed to load customers:', error)
       setCustomers([])
+    } finally {
       setLoading(false)
-      return
     }
-
-    const { data, error } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching customers:", error)
-    } else {
-      setCustomers((data as Customer[]) || [])
-    }
-    setLoading(false)
   }
 
   function openAddForm() {
@@ -83,30 +88,28 @@ export default function CustomersPage() {
   async function handleSave(e?: React.FormEvent<HTMLFormElement>) {
     if (e) e.preventDefault()
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      console.error('[handleSave] No authenticated user:', userError)
-      alert('Authentication required. Please log in.')
-      return
-    }
-
-    const payload = {
-      name: name.trim(),
-      phone: phone.trim() || null,
-      gst_number: gstNumber.trim() || null,
-      city: city.trim() || null,
-      address: address.trim() || null,
-      user_id: user.id,
-    }
-
     try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        throw new Error('Authentication required. Please log in.')
+      }
+
+      const payload = {
+        name: name.trim(),
+        phone: phone.trim() || null,
+        gst_number: gstNumber.trim() || null,
+        city: city.trim() || null,
+        address: address.trim() || null,
+        user_id: session.user.id,
+      }
+
       setLoading(true)
       if (editing) {
         const { error } = await supabase
           .from("customers")
           .update(payload)
           .eq("id", editing.id)
-          .eq("user_id", user.id)
+          .eq("user_id", session.user.id)
 
         if (error) throw error
       } else {
@@ -116,7 +119,8 @@ export default function CustomersPage() {
       await fetchCustomers()
       setIsFormOpen(false)
     } catch (err) {
-      console.error("Save error:", err)
+      console.error("[handleSave] Save error:", err)
+      alert(err instanceof Error ? err.message : 'Unable to save customer')
     } finally {
       setLoading(false)
     }

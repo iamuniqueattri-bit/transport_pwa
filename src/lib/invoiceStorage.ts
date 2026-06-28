@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedUserId } from '@/lib/auth'
 import type { Invoice, InvoiceListItem } from '@/types/invoice'
 
 const TABLE = 'invoices'
@@ -60,17 +61,7 @@ function mapInvoiceListItemRow(row: InvoiceListItemRow): InvoiceListItem {
 }
 
 async function getCurrentUserId(): Promise<string | null> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error) {
-    console.error('[invoiceStorage] getUser error:', error)
-    return null
-  }
-
-  return user?.id ?? null
+  return getAuthenticatedUserId()
 }
 
 export async function getInvoices(): Promise<InvoiceListItem[]> {

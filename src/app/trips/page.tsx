@@ -20,11 +20,19 @@ export default function TripsPage() {
   const [pullDistance, setPullDistance] = useState(0)
   const touchStartY = useRef<number | null>(null)
 
-  async function loadTrips() {
+  async function loadTrips(): Promise<boolean> {
     setLoading(true)
-    const data = await getTrips()
-    setTrips(data)
-    setLoading(false)
+    try {
+      const data = await getTrips()
+      setTrips(data)
+      return true
+    } catch (error) {
+      console.error('[TripsPage] Failed to load trips:', error)
+      setTrips([])
+      return false
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -62,8 +70,13 @@ export default function TripsPage() {
 
   const handleTouchEnd = async () => {
     if (pullDistance > 70) {
-      await loadTrips()
-      setToast('Trips refreshed')
+      try {
+        const refreshed = await loadTrips()
+        setToast(refreshed ? 'Trips refreshed' : 'Unable to refresh trips')
+      } catch (error) {
+        console.error('[TripsPage] Refresh failed:', error)
+        setToast('Unable to refresh trips')
+      }
     }
     setPullDistance(0)
     touchStartY.current = null
@@ -72,20 +85,30 @@ export default function TripsPage() {
   async function handleDelete(trip: Trip) {
     const confirmed = isBrowser ? window.confirm(`Delete trip ${trip.trip_number}?`) : true
     if (!confirmed) return
-    const ok = await deleteTrip(trip.id)
-    if (ok) {
-      setTrips((current) => current.filter((item) => item.id !== trip.id))
-      setToast('Trip deleted')
-    } else {
+    try {
+      const ok = await deleteTrip(trip.id)
+      if (ok) {
+        setTrips((current) => current.filter((item) => item.id !== trip.id))
+        setToast('Trip deleted')
+      } else {
+        setToast('Unable to delete trip')
+      }
+    } catch (error) {
+      console.error('[TripsPage] Delete failed:', error)
       setToast('Unable to delete trip')
     }
   }
 
   async function handleStatusChange(trip: Trip, status: Trip['status']) {
-    const updated = await updateTripStatus(trip.id, status)
-    if (updated) {
-      setTrips((current) => current.map((item) => (item.id === trip.id ? updated : item)))
-      setToast('Trip status updated')
+    try {
+      const updated = await updateTripStatus(trip.id, status)
+      if (updated) {
+        setTrips((current) => current.map((item) => (item.id === trip.id ? updated : item)))
+        setToast('Trip status updated')
+      }
+    } catch (error) {
+      console.error('[TripsPage] Status update failed:', error)
+      setToast('Unable to update trip status')
     }
   }
 

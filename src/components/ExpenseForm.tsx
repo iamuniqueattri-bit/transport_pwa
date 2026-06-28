@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedSession } from '@/lib/auth'
 import type { ExpenseInput } from '@/types/expense'
 
 type Vehicle = { id: string; vehicle_number: string }
@@ -27,22 +28,53 @@ export default function ExpenseForm({ initialData, onSubmit, onCancel, submitLab
   const [formData, setFormData] = useState<ExpenseInput>(emptyForm)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
+
     if (initialData) {
       setFormData({ ...emptyForm, ...initialData })
     }
-    loadVehicles()
+
+    void loadVehicles(cancelled)
+
+    return () => {
+      cancelled = true
+    }
   }, [initialData])
 
-  async function loadVehicles() {
+  async function loadVehicles(cancelled = false) {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    setAuthLoading(true)
 
-    const { data } = await supabase.from('vehicles').select('id, vehicle_number').eq('user_id', user.id).eq('is_active', true)
-    setVehicles((data as Vehicle[]) || [])
-    setLoading(false)
+    try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        if (!cancelled) {
+          setVehicles([])
+        }
+        return
+      }
+
+      const { data, error } = await supabase.from('vehicles').select('id, vehicle_number').eq('user_id', session.user.id).eq('is_active', true)
+      if (error) {
+        console.error('[ExpenseForm] Failed to load vehicles:', error)
+      }
+      if (!cancelled) {
+        setVehicles((data as Vehicle[]) || [])
+      }
+    } catch (error) {
+      console.error('[ExpenseForm] Failed to initialize vehicle dropdown:', error)
+      if (!cancelled) {
+        setVehicles([])
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false)
+        setAuthLoading(false)
+      }
+    }
   }
 
   function updateField(field: keyof ExpenseInput, value: string | number) {
@@ -57,6 +89,11 @@ export default function ExpenseForm({ initialData, onSubmit, onCancel, submitLab
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+
+    if (loading || authLoading) {
+      console.warn('[ExpenseForm] Submit blocked while vehicle options are loading')
+      return
+    }
 
     onSubmit({
       ...formData,
@@ -78,12 +115,18 @@ export default function ExpenseForm({ initialData, onSubmit, onCancel, submitLab
             value={formData.vehicle_id} 
             onChange={(event) => handleVehicleChange(event.target.value)} 
             className="input"
-            disabled={loading}
+            disabled={loading || authLoading}
           >
-            <option value="">Select Vehicle</option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>{vehicle.vehicle_number}</option>
-            ))}
+            {loading || authLoading ? (
+              <option value="">Loading vehicles...</option>
+            ) : (
+              <>
+                <option value="">Select Vehicle</option>
+                {vehicles.map((vehicle) => (
+                  <option key={vehicle.id} value={vehicle.id}>{vehicle.vehicle_number}</option>
+                ))}
+              </>
+            )}
           </select>
         </div>
         <div>

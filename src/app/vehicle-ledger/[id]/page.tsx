@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedSession } from '@/lib/auth'
 
 export default function VehicleLedgerDetailPage() {
   const params = useParams<{ id: string }>()
@@ -15,26 +16,45 @@ export default function VehicleLedgerDetailPage() {
     async function load() {
       if (!params?.id) return
       setLoading(true)
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        console.error('[VehicleLedger] No authenticated user:', userError)
-        setLoading(false)
-        return
-      }
+      try {
+        const session = await getAuthenticatedSession()
+        if (!session) {
+          setVehicle(null)
+          setTrips([])
+          setExpenses([])
+          return
+        }
 
-      const [{ data: vehicleData }, { data: tripData }, { data: expenseData }] = await Promise.all([
-        supabase.from('vehicles').select('vehicle_number').eq('id', params.id).eq('user_id', user.id).single(),
-        supabase.from('trips').select('id, gr_number, freight_amount, status').eq('vehicle_id', params.id).eq('user_id', user.id),
-        supabase.from('expenses').select('id, category, amount, date').eq('vehicle_id', params.id).eq('user_id', user.id),
-      ])
-      setVehicle(vehicleData as { vehicle_number: string } | null)
-      setTrips((tripData as Array<{ id: string; gr_number: string; freight_amount: number; status: string }>) || [])
-      setExpenses((expenseData as Array<{ id: string; category: string; amount: number; date: string }>) || [])
-      setLoading(false)
+        const [{ data: vehicleData, error: vehicleError }, { data: tripData, error: tripError }, { data: expenseData, error: expenseError }] = await Promise.all([
+          supabase.from('vehicles').select('vehicle_number').eq('id', params.id).eq('user_id', session.user.id).single(),
+          supabase.from('trips').select('id, gr_number, freight_amount, status').eq('vehicle_id', params.id).eq('user_id', session.user.id),
+          supabase.from('expenses').select('id, category, amount, date').eq('vehicle_id', params.id).eq('user_id', session.user.id),
+        ])
+
+        if (vehicleError) {
+          console.error('[VehicleLedger] Vehicle lookup failed:', vehicleError)
+        }
+        if (tripError) {
+          console.error('[VehicleLedger] Trip lookup failed:', tripError)
+        }
+        if (expenseError) {
+          console.error('[VehicleLedger] Expense lookup failed:', expenseError)
+        }
+
+        setVehicle(vehicleData as { vehicle_number: string } | null)
+        setTrips((tripData as Array<{ id: string; gr_number: string; freight_amount: number; status: string }>) || [])
+        setExpenses((expenseData as Array<{ id: string; category: string; amount: number; date: string }>) || [])
+      } catch (error) {
+        console.error('[VehicleLedger] Failed to load detail ledger:', error)
+        setVehicle(null)
+        setTrips([])
+        setExpenses([])
+      } finally {
+        setLoading(false)
+      }
     }
 
-    load()
+    void load()
   }, [params?.id])
 
   if (loading) {

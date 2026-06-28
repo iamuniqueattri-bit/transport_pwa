@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getAuthenticatedSession } from '@/lib/auth'
 import type { TripInput } from '@/types/trip'
 
 type Vehicle = { id: string; vehicle_number: string }
@@ -33,27 +34,64 @@ export default function TripForm({ initialData, onSubmit, onCancel, submitLabel,
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
+
     if (initialData) {
       setFormData({ ...emptyForm, ...initialData })
     }
-    loadVehiclesAndDrivers()
+
+    void loadVehiclesAndDrivers(cancelled)
+
+    return () => {
+      cancelled = true
+    }
   }, [initialData])
 
-  async function loadVehiclesAndDrivers() {
+  async function loadVehiclesAndDrivers(cancelled = false) {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    setAuthLoading(true)
 
-    const [vehiclesRes, driversRes] = await Promise.all([
-      supabase.from('vehicles').select('id, vehicle_number').eq('user_id', user.id).eq('is_active', true),
-      supabase.from('drivers').select('id, name').eq('user_id', user.id),
-    ])
+    try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        if (!cancelled) {
+          setVehicles([])
+          setDrivers([])
+        }
+        return
+      }
 
-    setVehicles((vehiclesRes.data as Vehicle[]) || [])
-    setDrivers((driversRes.data as Driver[]) || [])
-    setLoading(false)
+      const [vehiclesRes, driversRes] = await Promise.all([
+        supabase.from('vehicles').select('id, vehicle_number').eq('user_id', session.user.id).eq('is_active', true),
+        supabase.from('drivers').select('id, name').eq('user_id', session.user.id),
+      ])
+
+      if (vehiclesRes.error) {
+        console.error('[TripForm] Failed to load vehicles:', vehiclesRes.error)
+      }
+      if (driversRes.error) {
+        console.error('[TripForm] Failed to load drivers:', driversRes.error)
+      }
+
+      if (!cancelled) {
+        setVehicles((vehiclesRes.data as Vehicle[]) || [])
+        setDrivers((driversRes.data as Driver[]) || [])
+      }
+    } catch (error) {
+      console.error('[TripForm] Failed to initialize trip dropdowns:', error)
+      if (!cancelled) {
+        setVehicles([])
+        setDrivers([])
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false)
+        setAuthLoading(false)
+      }
+    }
   }
 
   function updateField(field: keyof TripInput, value: string) {
@@ -74,6 +112,10 @@ export default function TripForm({ initialData, onSubmit, onCancel, submitLabel,
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+    if (loading || authLoading) {
+      console.warn('[TripForm] Submit blocked while trip dropdowns are loading')
+      return
+    }
     onSubmit({
       ...formData,
       trip_date: formData.trip_date,
@@ -101,12 +143,18 @@ export default function TripForm({ initialData, onSubmit, onCancel, submitLabel,
             value={formData.vehicle_id} 
             onChange={(event) => handleVehicleChange(event.target.value)} 
             className="input"
-            disabled={loading}
+            disabled={loading || authLoading}
           >
-            <option value="">Select Vehicle</option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>{vehicle.vehicle_number}</option>
-            ))}
+            {loading || authLoading ? (
+              <option value="">Loading vehicles...</option>
+            ) : (
+              <>
+                <option value="">Select Vehicle</option>
+                {vehicles.map((vehicle) => (
+                  <option key={vehicle.id} value={vehicle.id}>{vehicle.vehicle_number}</option>
+                ))}
+              </>
+            )}
           </select>
         </div>
         <div>
@@ -115,12 +163,18 @@ export default function TripForm({ initialData, onSubmit, onCancel, submitLabel,
             value={formData.driver_id} 
             onChange={(event) => handleDriverChange(event.target.value)} 
             className="input"
-            disabled={loading}
+            disabled={loading || authLoading}
           >
-            <option value="">Select Driver</option>
-            {drivers.map((driver) => (
-              <option key={driver.id} value={driver.id}>{driver.name}</option>
-            ))}
+            {loading || authLoading ? (
+              <option value="">Loading drivers...</option>
+            ) : (
+              <>
+                <option value="">Select Driver</option>
+                {drivers.map((driver) => (
+                  <option key={driver.id} value={driver.id}>{driver.name}</option>
+                ))}
+              </>
+            )}
           </select>
         </div>
         <div>

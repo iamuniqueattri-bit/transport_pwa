@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedSession } from "@/lib/auth"
 import { getInvoiceById, updateInvoiceStatus, markInvoicePaid, duplicateInvoice } from "@/lib/invoiceStorage"
 import type { Invoice } from "@/types/invoice"
 import InvoiceDetails from "@/components/billing/InvoiceDetails"
@@ -50,15 +51,15 @@ export default function InvoiceDetailsPage() {
 
         setInvoice(invoiceData)
 
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError || !user) {
-          console.error('[InvoiceDetails] No authenticated user:', userError)
+        const session = await getAuthenticatedSession()
+        if (!session?.user) {
+          console.error('[InvoiceDetails] No authenticated session')
           setLoading(false)
           return
         }
 
         const [{ data: customerData }, { data: itemsData }] = await Promise.all([
-          supabase.from("customers").select("customer_name").eq("id", invoiceData.customer_id).eq("user_id", user.id).single(),
+          supabase.from("customers").select("customer_name").eq("id", invoiceData.customer_id).eq("user_id", session.user.id).single(),
           supabase
             .from("invoice_items")
             .select(`
@@ -91,7 +92,7 @@ export default function InvoiceDetailsPage() {
           setGrs(tripData)
         }
       } catch (error) {
-        console.error("Error loading invoice details:", error)
+        console.error("[InvoiceDetails] Error loading invoice details:", error)
       } finally {
         setLoading(false)
       }

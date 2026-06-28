@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { getAuthenticatedSession } from "@/lib/auth"
 
 type Customer = {
   id: string
@@ -22,31 +23,47 @@ export default function CustomerSelector({ selectedCustomer, onSelect }: Custome
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchCustomers()
+    let cancelled = false
+
+    void fetchCustomers(cancelled)
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  async function fetchCustomers() {
+  async function fetchCustomers(cancelled = false) {
     setLoading(true)
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      console.error('[CustomerSelector] No authenticated user:', userError)
-      setCustomers([])
-      setLoading(false)
-      return
-    }
+    try {
+      const session = await getAuthenticatedSession()
+      if (!session) {
+        if (!cancelled) {
+          setCustomers([])
+        }
+        return
+      }
 
-    const { data, error } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("name", { ascending: true })
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("name", { ascending: true })
 
-    if (error) {
-      console.error("Error fetching customers:", error)
-    } else {
-      setCustomers((data as Customer[]) || [])
+      if (error) {
+        console.error("[CustomerSelector] Error fetching customers:", error)
+      } else if (!cancelled) {
+        setCustomers((data as Customer[]) || [])
+      }
+    } catch (error) {
+      console.error("[CustomerSelector] Failed to load customers:", error)
+      if (!cancelled) {
+        setCustomers([])
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false)
+      }
     }
-    setLoading(false)
   }
 
   function filteredCustomers() {
@@ -70,9 +87,11 @@ export default function CustomerSelector({ selectedCustomer, onSelect }: Custome
       {loading && <div className="text-sm text-gray-600">Loading customers...</div>}
 
       <div className="space-y-3 max-h-64 overflow-y-auto">
+        {loading && <div className="card text-center text-gray-600">Loading customer options...</div>}
         {filteredCustomers().map((customer) => (
           <button
             key={customer.id}
+            type="button"
             onClick={() => onSelect(customer)}
             className={`card w-full text-left transition ${
               selectedCustomer?.id === customer.id ? "ring-2 ring-blue-500" : "hover:shadow-md"
